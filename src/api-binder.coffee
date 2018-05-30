@@ -198,6 +198,9 @@ module.exports = class APIBinder
 				@config.set(configToUpdate)
 			.then =>
 				@eventTracker.track('Device bootstrap success')
+				if @deviceState.pinDevice?
+					console.log('Attempting to pin device to preloaded release...')
+					@pinDevice(@deviceState.pinDevice)
 
 	_provisionOrRetry: (retryDelay) =>
 		@eventTracker.track('Device bootstrap')
@@ -262,6 +265,32 @@ module.exports = class APIBinder
 				id: id
 				body: updatedFields
 			.timeout(conf.apiTimeout)
+
+	pinDevice: ({ app, commit }) =>
+		@config.get('deviceId')
+		.then (deviceId) =>
+			@resinApi.get
+				resource: 'release'
+				options:
+					filter:
+						belongs_to__application: app
+						commit: commit
+						status: 'success'
+					select: 'id'
+			.get(0)
+			.get('id')
+			.then (releaseId) =>
+				if !releaseId?
+					console.log('Cannot continue pinning preloaded device! No release found!')
+					return
+				@resinApi.patch
+					resource: 'device'
+					id: deviceId
+					body:
+						should_be_running__release: releaseId
+			.catch (e) ->
+				console.log('Could not pin device to release!')
+				console.log('Error: ', e)
 
 	_sendLogsRequest: (uuid, data) =>
 		reqBody = _.map(data, (msg) -> _.mapKeys(msg, (v, k) -> _.snakeCase(k)))

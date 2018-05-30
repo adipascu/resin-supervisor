@@ -124,6 +124,8 @@ module.exports = class DeviceState extends EventEmitter
 		@lastApplyStart = process.hrtime()
 		@scheduledApply = null
 		@shuttingDown = false
+		# Should we pin this device to a release, once it's been preloaded?
+		@pinDevice = null
 		@router = createDeviceStateRouter(this)
 		@on 'apply-target-state-end', (err) ->
 			if err?
@@ -313,11 +315,17 @@ module.exports = class DeviceState extends EventEmitter
 		fs.readFileAsync(appsPath, 'utf8')
 		.then(JSON.parse)
 		.then (stateFromFile) =>
+			commitToPin = null
+			appToPin = null
 			if !_.isEmpty(stateFromFile)
 				if _.isArray(stateFromFile)
 					# This is a legacy apps.json
 					stateFromFile = @_convertLegacyAppsJson(stateFromFile)
 				images = _.flatMap stateFromFile.apps, (app, appId) =>
+					# multi-app warning!
+					# The following will need to be changed once running multiple applications is possible
+					commitToPin = app.commit
+					appToPin = appId
 					_.map app.services, (service, serviceId) =>
 						svc = {
 							imageName: service.image
@@ -341,6 +349,11 @@ module.exports = class DeviceState extends EventEmitter
 					@setTarget({
 						local: stateFromFile
 					})
+				.then =>
+					if stateFromFile.pinDevice
+						# multi-app warning!
+						# The following will need to be changed once running multiple applications is possible
+						@pinDevice = { commit: commitToPin, app: appToPin } if commitToPin? and appToPin?
 		.catch (err) =>
 			@eventTracker.track('Loading preloaded apps failed', { error: err })
 
