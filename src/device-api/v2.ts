@@ -119,4 +119,12 @@ export function createV2Api(router: Router, applications: ApplicationManager) {
 				res.status(503).send(message);
 			});
 	});
+
+	router.get('/v2/applications/:appId/state', (_req: Request, res: Response) => {
+		// Get all services and their statuses, and return it
+		applications.getStatus()
+			.then((apps) => {
+				res.status(200).json(apps);
+			});
+	});
 }
